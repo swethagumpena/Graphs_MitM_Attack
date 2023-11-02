@@ -142,7 +142,7 @@ object Main {
     // Perform random walks
     performRandomWalks(graph, maxSteps, visitedNodesAcc)
 
-    val content = s"SuccessfulAttacks: ${sAttacks.mkString(", ")}\nFailedAttacks: ${fAttacks.mkString(", ")}"
+    val content = s"NodesWithValuableData: ${originalNodeIDsWithValuableData.mkString("(", ", ", ")")}\nSuccessfulAttacks: ${sAttacks.mkString(", ")}\nFailedAttacks: ${fAttacks.mkString(", ")}"
     writeContentToFile(s"${args(3)}/attacks.txt", content)
 
     sc.stop()
