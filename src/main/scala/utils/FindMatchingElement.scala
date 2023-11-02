@@ -1,6 +1,7 @@
 package utils
 
 import NetGraphAlgebraDefs.NodeObject
+import com.typesafe.config.{Config, ConfigFactory}
 
 object FindMatchingElement {
   def jaccardSimilarity(perturbedNodeObject: NodeObject, originalNodeObject: NodeObject): Double = {
@@ -16,9 +17,12 @@ object FindMatchingElement {
   }
 
   def calculateScore(perturbedNode: NodeObject, originalNodes: Array[NodeObject]): Option[(Int, Int, Double)] = {
+    val config: Config = ConfigFactory.load("application.conf")
+    val matchingThreshold = config.getDouble("mitmAttack.similarityThreshold")
+
     val matchingElementArr = originalNodes.flatMap { originalNode =>
       val score = jaccardSimilarity(perturbedNode, originalNode)
-      if (score > 0.5) Some((originalNode.id, perturbedNode.id, score))
+      if (score > matchingThreshold) Some((originalNode.id, perturbedNode.id, score))
       else None
     }
 
