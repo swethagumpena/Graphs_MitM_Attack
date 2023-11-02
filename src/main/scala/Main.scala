@@ -7,6 +7,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.util.CollectionAccumulator
 import utils.LoadGraph
 import utils.FindMatchingElement.calculateScore
+import utils.ParseYAML.parseFile
 
 import scala.util.Random
 
@@ -58,7 +59,6 @@ object Main {
     path.reverse
   }
 
-
   def main(args: Array[String]): Unit = {
     logger.info("In spark application")
 
@@ -101,6 +101,10 @@ object Main {
     val sAttacks = scala.collection.mutable.Set[Int]()
     val fAttacks = scala.collection.mutable.Set[Int]()
 
+    val yamlData = parseFile(args(2))
+    val addedNodesList = yamlData("AddedNodes").map(_.toInt)
+    val modifiedNodesList = yamlData("ModifiedNodes").map(_.toInt)
+
     val maxSteps = 10 // Set the maximum number of steps for the random walk
 
     // Define an accumulator for visited nodes
@@ -118,6 +122,16 @@ object Main {
         walk.foreach { vertexId =>
           val node = nodes.lookup(vertexId).headOption.orNull // Lookup the node by vertexId
           val walkScoreTuple = calculateScore(node, parsedOriginalNodes)
+          walkScoreTuple.foreach { walkScoreTuple =>
+            // added - check perturbed node ID, modified - check original node ID
+            if (originalNodeIDsWithValuableData.contains(walkScoreTuple._1)) {
+              if (addedNodesList.contains(walkScoreTuple._2) || modifiedNodesList.contains(walkScoreTuple._1)) {
+                fAttacks += walkScoreTuple._2
+              } else {
+                sAttacks += walkScoreTuple._2
+              }
+            }
+          }
           visitedNodesAcc.add(vertexId)
         }
         iteration += 1
