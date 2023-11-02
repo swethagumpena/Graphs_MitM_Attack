@@ -13,5 +13,6 @@ lazy val root = (project in file("."))
       "org.apache.spark" %% "spark-graphx" % "3.4.1",
       "org.scalatest" %% "scalatest" % "3.0.8" % "test",
       "com.typesafe" % "config" % "1.4.1",
+      "software.amazon.awssdk" % "s3" % "2.17.21",
     )
   )

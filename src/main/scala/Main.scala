@@ -1,5 +1,5 @@
 import NetGraphAlgebraDefs.{Action, NodeObject}
-import org.apache.spark.graphx.{Graph, VertexId, Edge}
+import org.apache.spark.graphx.{Edge, Graph, VertexId}
 import org.slf4j.LoggerFactory
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.rdd.RDD
@@ -8,6 +8,7 @@ import org.apache.spark.util.CollectionAccumulator
 import utils.LoadGraph
 import utils.FindMatchingElement.calculateScore
 import utils.ParseYAML.parseFile
+import utils.WriteResults.writeContentToFile
 
 import scala.util.Random
 
@@ -140,6 +141,9 @@ object Main {
 
     // Perform random walks
     performRandomWalks(graph, maxSteps, visitedNodesAcc)
+
+    val content = s"SuccessfulAttacks: ${sAttacks.mkString(", ")}\nFailedAttacks: ${fAttacks.mkString(", ")}"
+    writeContentToFile(s"${args(3)}/attacks.txt", content)
 
     sc.stop()
   }
