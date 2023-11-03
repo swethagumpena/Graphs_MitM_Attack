@@ -5,7 +5,6 @@ import org.slf4j.LoggerFactory
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.util.CollectionAccumulator
 import utils.LoadGraph
 import utils.FindMatchingElement.calculateScore
 import utils.ParseYAML.parseFile
@@ -38,6 +37,10 @@ object Main {
         logger.trace("Invalid NodeObject string format")
         throw new IllegalArgumentException("Invalid NodeObject string format" + nodeString)
     }
+  }
+
+  def statsContent(coverage: Double, totalWalks: Int, successfulAttacks: Set[Int], failedAttacks: Set[Int]): String = {
+    s"Coverage: ${coverage * 100}%\nNumber of Random Walks: $totalWalks\nSuccessful Attacks: ${successfulAttacks.mkString(", ")}\nFailed Attacks: ${failedAttacks.mkString(", ")}\nNumber of Successful Attacks: ${successfulAttacks.size}\nNumber of Failed Attacks: ${failedAttacks.size}\n\n"
   }
 
   def main(args: Array[String]): Unit = {
@@ -80,53 +83,64 @@ object Main {
 
     val graph = Graph(nodes, edges)
 
-    val sAttacks = scala.collection.mutable.Set[Int]()
-    val fAttacks = scala.collection.mutable.Set[Int]()
-
     val yamlData = parseFile(args(2))
     val addedNodesList = yamlData("AddedNodes").map(_.toInt)
     val modifiedNodesList = yamlData("ModifiedNodes").map(_.toInt)
 
     val maxSteps = config.getInt("mitmAttack.maxWalkLength") // Set the maximum number of steps for the random walk
-
     val nodesCoverage = config.getDouble("mitmAttack.coverage")
 
-    // Define an accumulator for visited nodes
     val visitedNodesAcc = sc.collectionAccumulator[VertexId]("VisitedNodes")
 
-    // Function to perform random walks from randomly selected nodes
-    def performRandomWalks(graph: Graph[NodeObject, Action], maxSteps: Int, visitedNodesAcc: CollectionAccumulator[VertexId]): Unit = {
-      def processNode(vertexId: VertexId, node: NodeObject): Unit = {
-        val walkScoreTuple = calculateScore(node, parsedOriginalNodes)
-        walkScoreTuple.foreach { walkScoreTuple =>
-          if (originalNodeIDsWithValuableData.contains(walkScoreTuple._1)) {
-            if (addedNodesList.contains(walkScoreTuple._2) || modifiedNodesList.contains(walkScoreTuple._1)) {
-              fAttacks += walkScoreTuple._2
-            } else {
-              sAttacks += walkScoreTuple._2
-            }
-          }
-        }
+    def processNode(vertexId: VertexId, node: NodeObject): (Set[Int], Set[Int]) = {
+      val walkScoreTuple = calculateScore(node, parsedOriginalNodes)
+      walkScoreTuple.foldLeft((Set.empty[Int], Set.empty[Int])) { case ((sAttacks, fAttacks), (nodeId, perturbedNodeId, _)) =>
         visitedNodesAcc.add(vertexId)
-      }
-
-      val startNodes = Random.shuffle(graph.vertices.map(_._1).collect().toList)
-      startNodes.foreach { startNode =>
-        if (visitedNodesAcc.value.toArray.toSet.size >= parsedPerturbedNodes.length * nodesCoverage) return
-        val walk = randomWalk(graph, startNode, maxSteps, visitedNodesAcc)
-        walk.foreach { vertexId =>
-          nodes.lookup(vertexId).headOption.foreach { node =>
-            processNode(vertexId, node)
+        if (originalNodeIDsWithValuableData.contains(nodeId)) {
+          if (addedNodesList.contains(perturbedNodeId) || modifiedNodesList.contains(nodeId)) {
+            (sAttacks, fAttacks + perturbedNodeId)
+          } else {
+            (sAttacks + perturbedNodeId, fAttacks)
           }
+        } else {
+          (sAttacks, fAttacks)
         }
       }
     }
 
-    // Perform random walks
-    performRandomWalks(graph, maxSteps, visitedNodesAcc)
+    val startNodes = Random.shuffle(graph.vertices.map(_._1).collect().toList)
 
-    val content = s"NodesWithValuableData: ${originalNodeIDsWithValuableData.mkString("", ", ", "")}\nSuccessfulAttacks: ${sAttacks.mkString(", ")}\nFailedAttacks: ${fAttacks.mkString(", ")}"
-    writeContentToFile(s"${args(3)}/${config.getString("mitmAttack.resultsFileName")}", content)
+    val (sAttacks, fAttacks, totalWalks, minNodes, maxNodes, totalNodes, successfulWalksCounter) = startNodes.foldLeft((Set.empty[Int], Set.empty[Int], 0, Int.MaxValue, Int.MinValue, 0, 0)) { case ((sAcc, fAcc, walks, minNodes, maxNodes, totalNodes, successfulWalksCounter), startNode) =>
+      val numberOfNodesCovered = visitedNodesAcc.value.toArray.toSet.size
+      val numberOfNodesToBeCovered = parsedPerturbedNodes.length * nodesCoverage
+
+      if (numberOfNodesCovered >= numberOfNodesToBeCovered) {
+        (sAcc, fAcc, walks, minNodes, maxNodes, totalNodes, successfulWalksCounter) // Return current state without incrementing walks or counter
+      } else {
+        val walk = randomWalk(graph, startNode, maxSteps, visitedNodesAcc)
+        val (s, f) = walk.flatMap { vertexId =>
+          nodes.lookup(vertexId).headOption.map { node =>
+            processNode(vertexId, node)
+          }
+        }.foldLeft((Set.empty[Int], Set.empty[Int])) { case ((s1, f1), (s2, f2)) =>
+          (s1 ++ s2, f1 ++ f2)
+        }
+
+        val numNodesInWalk = walk.length
+        val updatedMinNodes = Math.min(minNodes, numNodesInWalk)
+        val updatedMaxNodes = Math.max(maxNodes, numNodesInWalk)
+        val updatedTotalNodes = totalNodes + numNodesInWalk
+        val updatedSuccessfulWalksCounter = if (s.nonEmpty) successfulWalksCounter + 1 else successfulWalksCounter // Increment when a random walk results in a successful attack
+
+        (sAcc ++ s, fAcc ++ f, walks + 1, updatedMinNodes, updatedMaxNodes, updatedTotalNodes, updatedSuccessfulWalksCounter) // Increment walks and update min/max/total nodes, and counter
+      }
+    }
+
+    val meanNodes = totalNodes.toDouble / totalWalks
+    val successfulAttacksRatio = successfulWalksCounter.toDouble / totalWalks
+
+    val content = s"Nodes With Valuable Data: ${originalNodeIDsWithValuableData.mkString("", ", ", "")}\n\n" + statsContent(nodesCoverage, totalWalks, sAttacks, fAttacks) + s"Minimum Number of Nodes in a Walk: $minNodes\nMaximum Number of Nodes in a Walk: $maxNodes\nMean Number of Nodes in a Walk: $meanNodes\nRatio of Number of Random Walks resulting in Successful Attacks to the Total Number of Random Walks: $successfulAttacksRatio"
+    writeContentToFile(s"${args(3)}${config.getString("mitmAttack.resultsFileName")}", content)
 
     sc.stop()
   }

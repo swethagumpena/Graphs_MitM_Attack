@@ -11,7 +11,7 @@ object GraphWalk {
   def randomWalk(graph: Graph[NodeObject, Action], startNode: VertexId, maxSteps: Int, visitedNodesAcc: CollectionAccumulator[VertexId]): List[VertexId] = {
     @tailrec
     def randomWalkRecursive(currentNode: VertexId, steps: Int, path: List[VertexId]): List[VertexId] = {
-      if (steps >= maxSteps || visitedNodesAcc.value.contains(startNode)) {
+      if (steps >= maxSteps - 1 || visitedNodesAcc.value.contains(startNode)) {
         path.reverse
       } else {
         val neighbors = graph.edges.filter(_.srcId == currentNode).map(_.dstId).collect()
