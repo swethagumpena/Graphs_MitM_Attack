@@ -94,6 +94,7 @@ We will take a look at the detailed description of how each of these pieces of c
   - If the node is decided to be attacked: if the original node a removed node or the original node is an unchanged node, then it is a "Successful Attack"  
 - _**Successful Attack**_ - If the original node is valuable and the attacker finds the closest match to this node that is removed or unchanged, s/he successfully found a valuable node, attacks it and draws valuable information
 - _**Failed Attack**_ - If the original node is valuable and finds the closest match to a node that is added or modified, s/he encountered a honeypot that was purposely placed which very much resembles an actual node but was used to deceive attackers. This results in a failed attack and the attacker is busted
+- Random walks are generated until the coverage is met. Here, coverage means the percentage of nodes we want to traverse. For instance, I've set my coverage to be 0.9. This means I would terminate by program after visiting 90% of the nodes. This is done to ensure that all nodes are not visited which could lead to a higher probability of the attacker being caught
 - Different metrics are computed and finally written to a results file. The metrics computed are:
   - Number of successful and failed attacks for a given number of iterations
   - Minimum number of nodes in a random walk
@@ -143,9 +144,33 @@ We will take a look at the detailed description of how each of these pieces of c
   - It extracts the similarity threshold for matching from the configuration file
   - It applies the jaccardSimilarity function to calculate the similarity score between the perturbedNode and each originalNode
   - It filters out the elements where the similarity score is below the specified threshold
-  - If there are matching elements (i.e., the matchingElementArr is not empty), it finds the element with the highest similarity score using maxBy(_._3)
+  - If there are matching elements (i.e., the matchingElementArr is not empty), it finds the element with the highest similarity score
   - It returns an Option containing a tuple (originalNodeId, perturbedNodeId, similarityScore) representing the matching element if one exists. Otherwise, it returns None
 
+---
+
+## Results
+Sample results are shown below. This demonstrates the nodes that have been successfully attacked and the instances where the attacker attacked a honeypot along with other metrics
+```
+  Nodes With Valuable Data: 3, 12, 15, 17, 23, 38, 41, 42, 49, 64, 76, 80, 97, 105, 136, 148, 160, 167, 177, 182, 187, 233, 239, 242, 243, 254, 256, 266, 285, 291, 297, 300, 313, 336, 342, 348, 357, 363, 365, 373, 377, 383, 389, 390, 401, 423, 425, 431, 442, 460, 466, 480
+  
+  Coverage: 90.0%
+  Number of Random Walks: 326
+  Successful Attacks: 365, 42, 411, 297, 256, 41, 266, 291, 342, 336, 363, 383, 442, 254, 357, 460, 348, 480, 233, 220, 97, 285, 425, 64, 17, 12, 313, 49, 187, 377, 76, 3, 80, 167, 177, 182, 390, 401, 23, 300, 373, 239, 242
+  Failed Attacks: 466, 518, 515, 160
+  Number of Successful Attacks: 43
+  Number of Failed Attacks: 4
+  
+  Minimum Number of Nodes in a Walk: 1
+  Maximum Number of Nodes in a Walk: 10
+  Mean Number of Nodes in a Walk: 1.9417177914110428
+  Ratio of Number of Random Walks resulting in Successful Attacks to the Total Number of Random Walks: 0.17484662576687116
+```
+Below is the demonstration of the number of Successful and Failed Attacks for different values of coverage  
+- When the coverage is low: lesser number of walks are computed, which results in less nodes being visited and eventually lesser number of attacks  
+- As the coverage increases: more attacks are being performed  
+
+<img src="varying_coverage_results.png" alt="drawing" width="500"/>
 ---
 
 ## Test Cases
