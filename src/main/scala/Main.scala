@@ -47,16 +47,6 @@ object Main {
     logger.info("In spark application")
     val config: Config = ConfigFactory.load("application.conf")
 
-    val isRunningOnAWS = sys.env.contains("AWS_REGION") || sys.env.contains("AWS_EXECUTION_ENV")
-
-    val sc = if (isRunningOnAWS) {
-      val spark = SparkSession.builder().appName("Graphs_MitM_Attack").getOrCreate()
-      spark.sparkContext
-    } else {
-      val conf = new SparkConf().setAppName("RandomWalksApp").setMaster("local[4]") // Set master to local with 4 cores
-      new SparkContext(conf)
-    }
-
     val (originalNodes, originalEdges) = LoadGraph.load(args(0))
     val (perturbedNodes, perturbedEdges) = LoadGraph.load(args(1))
 
@@ -73,6 +63,16 @@ object Main {
 
     val perturbedNodesArray = perturbedNodes.toArray.map(_.toString)
     val parsedPerturbedNodes: Array[NodeObject] = perturbedNodesArray.map(parseNodeObject)
+
+    val isRunningOnAWS = sys.env.contains("AWS_REGION") || sys.env.contains("AWS_EXECUTION_ENV")
+
+    val sc = if (isRunningOnAWS) {
+      val spark = SparkSession.builder().appName("Graphs_MitM_Attack").getOrCreate()
+      spark.sparkContext
+    } else {
+      val conf = new SparkConf().setAppName("RandomWalksApp").setMaster("local[4]") // Set master to local with 4 cores
+      new SparkContext(conf)
+    }
 
     // Create an RDD for the nodes
     val nodes: RDD[(VertexId, NodeObject)] = sc.parallelize(parsedPerturbedNodes).map { node =>
