@@ -7,7 +7,7 @@ Repo for the Spark Homework-2 for CS441-Fall2023
 
 ---
 
-AWS EMR Deployment video link: 
+AWS EMR Deployment video link: https://youtu.be/BpMLJzGaZjY
 
 ---
 
