@@ -6,7 +6,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 import utils.LoadGraph
-import utils.FindMatchingElement.calculateScore
+import utils.FindMatchingElement.matchedElement
 import utils.ParseYAML.parseFile
 import utils.WriteResults.writeContentToFile
 import utils.GraphWalk.randomWalk
@@ -93,7 +93,7 @@ object Main {
     val visitedNodesAcc = sc.collectionAccumulator[VertexId]("VisitedNodes")
 
     def processNode(vertexId: VertexId, node: NodeObject): (Set[Int], Set[Int]) = {
-      val walkScoreTuple = calculateScore(node, parsedOriginalNodes)
+      val walkScoreTuple = matchedElement(node, parsedOriginalNodes)
       walkScoreTuple.foldLeft((Set.empty[Int], Set.empty[Int])) { case ((sAttacks, fAttacks), (nodeId, perturbedNodeId, _)) =>
         visitedNodesAcc.add(vertexId)
         if (originalNodeIDsWithValuableData.contains(nodeId)) {

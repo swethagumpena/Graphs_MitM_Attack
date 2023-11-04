@@ -16,7 +16,7 @@ object FindMatchingElement {
     if (unionSize == 0) 0.0 else intersectionSize.toDouble / unionSize.toDouble
   }
 
-  def calculateScore(perturbedNode: NodeObject, originalNodes: Array[NodeObject]): Option[(Int, Int, Double)] = {
+  def matchedElement(perturbedNode: NodeObject, originalNodes: Array[NodeObject]): Option[(Int, Int, Double)] = {
     val config: Config = ConfigFactory.load("application.conf")
     val matchingThreshold = config.getDouble("mitmAttack.similarityThreshold")
 
