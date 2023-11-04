@@ -57,6 +57,7 @@ object Main {
     val originalNodesArray = originalNodes.toArray.map(_.toString)
     val parsedOriginalNodes: Array[NodeObject] = originalNodesArray.map(parseNodeObject)
 
+    logger.info("Storing original node IDs with valuable data")
     val originalNodeIDsWithValuableData: Array[Int] = parsedOriginalNodes.collect {
       case node if node.valuableData => node.id
     }
@@ -67,9 +68,11 @@ object Main {
     val isRunningOnAWS = sys.env.contains("AWS_REGION") || sys.env.contains("AWS_EXECUTION_ENV")
 
     val sc = if (isRunningOnAWS) {
+      logger.info("Running application on AWS")
       val spark = SparkSession.builder().appName("Graphs_MitM_Attack").getOrCreate()
       spark.sparkContext
     } else {
+      logger.info("Running application locally with 4 cores")
       val conf = new SparkConf().setAppName("RandomWalksApp").setMaster("local[4]") // Set master to local with 4 cores
       new SparkContext(conf)
     }
@@ -78,39 +81,45 @@ object Main {
     val nodes: RDD[(VertexId, NodeObject)] = sc.parallelize(parsedPerturbedNodes).map { node =>
       (node.id, node)
     }
+    logger.info("Created Nodes RDD")
 
+    // Create an RDD for the edges
     val edges: RDD[Edge[Action]] = sc.parallelize(perturbedEdges.toArray.map(action => Edge(action.fromNode.id, action.toNode.id, action)))
+    logger.info("Created Edges RDD")
 
     val graph = Graph(nodes, edges)
+    logger.info("Created GraphX Graph using Nodes RDD and Edges RDD")
 
     val yamlData = parseFile(args(2))
     val addedNodesList = yamlData("AddedNodes").map(_.toInt)
     val modifiedNodesList = yamlData("ModifiedNodes").map(_.toInt)
 
     val maxSteps = config.getInt("mitmAttack.maxWalkLength") // Set the maximum number of steps for the random walk
+    logger.info(s"Maximum steps for the random walk is $maxSteps")
     val nodesCoverage = config.getDouble("mitmAttack.coverage")
+    logger.info(s"Maximum coverage for the graph is $nodesCoverage")
 
     val visitedNodesAcc = sc.collectionAccumulator[VertexId]("VisitedNodes")
 
     def processNode(vertexId: VertexId, node: NodeObject): (Set[Int], Set[Int]) = {
       val walkScoreTuple = matchedElement(node, parsedOriginalNodes)
-      walkScoreTuple.foldLeft((Set.empty[Int], Set.empty[Int])) { case ((sAttacks, fAttacks), (nodeId, perturbedNodeId, _)) =>
+      walkScoreTuple.foldLeft((Set.empty[Int], Set.empty[Int])) { case ((successfulAttacks, failedAttacks), (nodeId, perturbedNodeId, _)) =>
         visitedNodesAcc.add(vertexId)
         if (originalNodeIDsWithValuableData.contains(nodeId)) {
           if (addedNodesList.contains(perturbedNodeId) || modifiedNodesList.contains(nodeId)) {
-            (sAttacks, fAttacks + perturbedNodeId)
+            (successfulAttacks, failedAttacks + perturbedNodeId)
           } else {
-            (sAttacks + perturbedNodeId, fAttacks)
+            (successfulAttacks + perturbedNodeId, failedAttacks)
           }
         } else {
-          (sAttacks, fAttacks)
+          (successfulAttacks, failedAttacks)
         }
       }
     }
 
     val startNodes = Random.shuffle(graph.vertices.map(_._1).collect().toList)
 
-    val (sAttacks, fAttacks, totalWalks, minNodes, maxNodes, totalNodes, successfulWalksCounter) = startNodes.foldLeft((Set.empty[Int], Set.empty[Int], 0, Int.MaxValue, Int.MinValue, 0, 0)) { case ((sAcc, fAcc, walks, minNodes, maxNodes, totalNodes, successfulWalksCounter), startNode) =>
+    val (successfulAttacks, failedAttacks, totalWalks, minNodes, maxNodes, totalNodes, successfulWalksCounter) = startNodes.foldLeft((Set.empty[Int], Set.empty[Int], 0, Int.MaxValue, Int.MinValue, 0, 0)) { case ((sAcc, fAcc, walks, minNodes, maxNodes, totalNodes, successfulWalksCounter), startNode) =>
       val numberOfNodesCovered = visitedNodesAcc.value.toArray.toSet.size
       val numberOfNodesToBeCovered = parsedPerturbedNodes.length * nodesCoverage
 
@@ -132,6 +141,9 @@ object Main {
         val updatedTotalNodes = totalNodes + numNodesInWalk
         val updatedSuccessfulWalksCounter = if (s.nonEmpty) successfulWalksCounter + 1 else successfulWalksCounter // Increment when a random walk results in a successful attack
 
+        logger.debug(s"Successfully completed random walk starting from node $startNode")
+        logger.trace(s"Number of nodes in this walk: $numNodesInWalk")
+
         (sAcc ++ s, fAcc ++ f, walks + 1, updatedMinNodes, updatedMaxNodes, updatedTotalNodes, updatedSuccessfulWalksCounter) // Increment walks and update min/max/total nodes, and counter
       }
     }
@@ -139,7 +151,14 @@ object Main {
     val meanNodes = totalNodes.toDouble / totalWalks
     val successfulAttacksRatio = successfulWalksCounter.toDouble / totalWalks
 
-    val content = s"Nodes With Valuable Data: ${originalNodeIDsWithValuableData.mkString("", ", ", "")}\n\n" + statsContent(nodesCoverage, totalWalks, sAttacks, fAttacks) + s"Minimum Number of Nodes in a Walk: $minNodes\nMaximum Number of Nodes in a Walk: $maxNodes\nMean Number of Nodes in a Walk: $meanNodes\nRatio of Number of Random Walks resulting in Successful Attacks to the Total Number of Random Walks: $successfulAttacksRatio"
+    logger.info(s"Nodes With Valuable Data: ${originalNodeIDsWithValuableData.mkString("", ", ", "")}")
+    logger.info(statsContent(nodesCoverage, totalWalks, successfulAttacks, failedAttacks))
+    logger.info(s"Minimum Number of Nodes in a Walk: $minNodes")
+    logger.info(s"Maximum Number of Nodes in a Walk: $maxNodes")
+    logger.info(s"Mean Number of Nodes in a Walk: $meanNodes")
+    logger.info(s"Ratio of Number of Random Walks resulting in Successful Attacks to the Total Number of Random Walks: $successfulAttacksRatio")
+
+    val content = s"Nodes With Valuable Data: ${originalNodeIDsWithValuableData.mkString("", ", ", "")}\n\n" + statsContent(nodesCoverage, totalWalks, successfulAttacks, failedAttacks) + s"Minimum Number of Nodes in a Walk: $minNodes\nMaximum Number of Nodes in a Walk: $maxNodes\nMean Number of Nodes in a Walk: $meanNodes\nRatio of Number of Random Walks resulting in Successful Attacks to the Total Number of Random Walks: $successfulAttacksRatio"
     writeContentToFile(s"${args(3)}${config.getString("mitmAttack.resultsFileName")}", content)
 
     sc.stop()

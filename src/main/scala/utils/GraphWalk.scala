@@ -5,8 +5,10 @@ import org.apache.spark.graphx.{Graph, VertexId}
 import org.apache.spark.util.CollectionAccumulator
 import scala.annotation.tailrec
 import scala.util.Random
+import org.slf4j.LoggerFactory
 
 object GraphWalk {
+  private val logger = LoggerFactory.getLogger(getClass)
   //   Define the randomWalk function with an accumulator for visited nodes
   def randomWalk(graph: Graph[NodeObject, Action], startNode: VertexId, maxSteps: Int, visitedNodesAcc: CollectionAccumulator[VertexId]): List[VertexId] = {
     @tailrec
@@ -26,6 +28,9 @@ object GraphWalk {
         }
       }
     }
-    randomWalkRecursive(startNode, 0, List(startNode))
+    logger.info(s"Starting randomWalk with startNode: $startNode, maxSteps: $maxSteps")
+    val result = randomWalkRecursive(startNode, 0, List(startNode))
+    logger.info(s"RandomWalk result: $result")
+    result
   }
 }

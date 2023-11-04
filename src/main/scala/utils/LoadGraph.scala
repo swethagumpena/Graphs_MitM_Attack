@@ -25,6 +25,7 @@ object LoadGraph {
         objectInputStream.close() // Close the stream after use
         (nodes, edges)
       case None =>
+        logger.error("Invalid file path or URL")
         throw new IllegalArgumentException("Invalid file path or URL")
     }
   }
