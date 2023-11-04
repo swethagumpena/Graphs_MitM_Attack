@@ -10,6 +10,7 @@ import scala.util.Try
 object LoadGraph {
   private val logger = LoggerFactory.getLogger(getClass)
 
+  // Function to load a graph from a file path or URL
   def load(filePath: String): (List[NodeObject], List[Action]) = {
     val inputStream: Option[InputStream] = if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
       Try(new URL(filePath).openStream()).toOption
@@ -18,11 +19,18 @@ object LoadGraph {
     }
     inputStream match {
       case Some(stream) =>
+        // If a valid stream is obtained, proceed with reading the object
         val objectInputStream = new ObjectInputStream(stream)
         val ng = objectInputStream.readObject().asInstanceOf[List[NetGraphComponent]]
+
+        // Separate nodes and edges from the loaded components
         val nodes = ng.collect { case node: NodeObject => node }
         val edges = ng.collect { case edge: Action => edge }
-        objectInputStream.close() // Close the stream after use
+
+        // Close the stream after use
+        objectInputStream.close()
+
+        // Return the nodes and edges
         (nodes, edges)
       case None =>
         logger.error("Invalid file path or URL")

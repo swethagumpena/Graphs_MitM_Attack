@@ -17,6 +17,7 @@ object Main {
 
   // Parse a NodeObject from its string representation
   def parseNodeObject(nodeString: String): NodeObject = {
+    // Regular expression pattern to match and extract components of NodeObject
     val pattern = """NodeObject\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+),(\d+),(\d+),([\d.]+(?:[Ee][+-]?\d+)?),(\w+)\)""".r
     nodeString match {
       case pattern(id, children, props, currentDepth, propValueRange, maxDepth,
@@ -39,6 +40,7 @@ object Main {
     }
   }
 
+  // Generate statistics content for successful and failed attacks
   def statsContent(coverage: Double, totalWalks: Int, successfulAttacks: Set[Int], failedAttacks: Set[Int]): String = {
     s"Coverage: ${coverage * 100}%\nNumber of Random Walks: $totalWalks\nSuccessful Attacks: ${successfulAttacks.mkString(", ")}\nFailed Attacks: ${failedAttacks.mkString(", ")}\nNumber of Successful Attacks: ${successfulAttacks.size}\nNumber of Failed Attacks: ${failedAttacks.size}\n\n"
   }
@@ -47,6 +49,7 @@ object Main {
     logger.info("In spark application")
     val config: Config = ConfigFactory.load("application.conf")
 
+    // Load original and perturbed nodes and edges
     val (originalNodes, originalEdges) = LoadGraph.load(args(0))
     val (perturbedNodes, perturbedEdges) = LoadGraph.load(args(1))
 
@@ -54,6 +57,7 @@ object Main {
       logger.warn("Input is not of the right format")
     } else logger.info("Graphs successfully loaded")
 
+    // Convert original and perturbed nodes to string representation and parse them
     val originalNodesArray = originalNodes.toArray.map(_.toString)
     val parsedOriginalNodes: Array[NodeObject] = originalNodesArray.map(parseNodeObject)
 
@@ -90,6 +94,7 @@ object Main {
     val graph = Graph(nodes, edges)
     logger.info("Created GraphX Graph using Nodes RDD and Edges RDD")
 
+    // Parse YAML file for added and modified nodes
     val yamlData = parseFile(args(2))
     val addedNodesList = yamlData("AddedNodes").map(_.toInt)
     val modifiedNodesList = yamlData("ModifiedNodes").map(_.toInt)
@@ -101,28 +106,35 @@ object Main {
 
     val visitedNodesAcc = sc.collectionAccumulator[VertexId]("VisitedNodes")
 
+    // Function to process nodes during random walk
     def processNode(vertexId: VertexId, node: NodeObject): (Set[Int], Set[Int]) = {
       val walkScoreTuple = matchedElement(node, parsedOriginalNodes)
       walkScoreTuple.foldLeft((Set.empty[Int], Set.empty[Int])) { case ((successfulAttacks, failedAttacks), (nodeId, perturbedNodeId, _)) =>
         visitedNodesAcc.add(vertexId)
         if (originalNodeIDsWithValuableData.contains(nodeId)) {
+          // If it contains valuable data, we attack it
           if (addedNodesList.contains(perturbedNodeId) || modifiedNodesList.contains(nodeId)) {
+            // If it is added/modified - leads to a failed attack
             (successfulAttacks, failedAttacks + perturbedNodeId)
           } else {
+            // If it is unchanged/removed - leads to a successful attack
             (successfulAttacks + perturbedNodeId, failedAttacks)
           }
         } else {
+          // If it does not contain valuable data, we do not attack it
           (successfulAttacks, failedAttacks)
         }
       }
     }
 
+    // List of random starting nodes
     val startNodes = Random.shuffle(graph.vertices.map(_._1).collect().toList)
 
     val (successfulAttacks, failedAttacks, totalWalks, minNodes, maxNodes, totalNodes, successfulWalksCounter) = startNodes.foldLeft((Set.empty[Int], Set.empty[Int], 0, Int.MaxValue, Int.MinValue, 0, 0)) { case ((sAcc, fAcc, walks, minNodes, maxNodes, totalNodes, successfulWalksCounter), startNode) =>
       val numberOfNodesCovered = visitedNodesAcc.value.toArray.toSet.size
       val numberOfNodesToBeCovered = parsedPerturbedNodes.length * nodesCoverage
 
+      // Condition to stop generating random walks when visited nodes is beyond the threshold
       if (numberOfNodesCovered >= numberOfNodesToBeCovered) {
         (sAcc, fAcc, walks, minNodes, maxNodes, totalNodes, successfulWalksCounter) // Return current state without incrementing walks or counter
       } else {
@@ -158,7 +170,10 @@ object Main {
     logger.info(s"Mean Number of Nodes in a Walk: $meanNodes")
     logger.info(s"Ratio of Number of Random Walks resulting in Successful Attacks to the Total Number of Random Walks: $successfulAttacksRatio")
 
+    // Create content string for the results file
     val content = s"Nodes With Valuable Data: ${originalNodeIDsWithValuableData.mkString("", ", ", "")}\n\n" + statsContent(nodesCoverage, totalWalks, successfulAttacks, failedAttacks) + s"Minimum Number of Nodes in a Walk: $minNodes\nMaximum Number of Nodes in a Walk: $maxNodes\nMean Number of Nodes in a Walk: $meanNodes\nRatio of Number of Random Walks resulting in Successful Attacks to the Total Number of Random Walks: $successfulAttacksRatio"
+
+    // Write content to the results file
     writeContentToFile(s"${args(3)}${config.getString("mitmAttack.resultsFileName")}", content)
 
     sc.stop()

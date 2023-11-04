@@ -24,32 +24,6 @@ class TestCases extends AnyFunSuite with Matchers {
     assert(!mitmConfig.isEmpty)
   }
 
-  //  test("randomWalk should return a valid path within the specified maxSteps") {
-  //    val conf = new SparkConf().setAppName("RandomWalksApp").setMaster("local[4]") // Set master to local with 4 cores
-  //    val sc = new SparkContext(conf)
-  //
-  //    val nodes: RDD[(VertexId, NodeObject)] = sc.parallelize(Array(NodeObject(1, 3, 1, 1, 30, 1, 6, 2, 0.4258682312228954, false), NodeObject(2, 6, 8, 1, 96, 4, 6, 3, 0.4359434878889962, false), NodeObject(3, 6, 11, 1, 21, 4, 6, 2, 0.7217057217683407, true), NodeObject(4, 1, 8, 1, 13, 1, 0, 19, 0.842346651945046, false))).map { node =>
-  //      (node.id, node)
-  //    }
-  //    //    val edges: RDD[Edge[Action]] = sc.parallelize(List(Action(1, NodeObject(1, 3, 1, 1, 30, 1, 6, 2, 0.4258682312228954, false), NodeObject(2, 6, 8, 1, 96, 4, 6, 3, 0.4359434878889962, false), 43, 0, None, 0.6583538356298387), Action(2, NodeObject(2, 6, 8, 1, 96, 4, 6, 3, 0.4359434878889962, false), NodeObject(3, 6, 11, 1, 21, 4, 6, 2, 0.7217057217683407, true), 18, 2, None, 0.34992336268282553), Action(3, NodeObject(3, 6, 11, 1, 21, 4, 6, 2, 0.7217057217683407, true), NodeObject(4, 1, 8, 1, 13, 1, 0, 19, 0.842346651945046, false), 1, 0, Some(0), 0.17487835860975176)).toArray.map(action => Edge(action.fromNode.id, action.toNode.id, action)))
-  //    //
-  //    //    val graph: Graph[NodeObject, Action] = Graph(nodes, edges)
-  //    //    val visitedNodesAcc: CollectionAccumulator[VertexId] = sc.collectionAccumulator[VertexId]("VisitedNodes")
-  //    //    val startNode: VertexId = 1
-  //    //    val maxSteps: Int = 3
-  //    //
-  //    //    val resultPath = GraphWalk.randomWalk(graph, startNode, maxSteps, visitedNodesAcc)
-  //    //
-  //    //    // Assertion 1: The resultPath should not be empty
-  //    //    resultPath should not be empty
-  //    //
-  //    //    // Assertion 2: The resultPath should start with the specified startNode
-  //    //    resultPath.head shouldBe startNode
-  //    //
-  //    //    // Assertion 3: The length of the resultPath should be less than or equal to maxSteps
-  //    //    resultPath.length should be <= maxSteps
-  //  }
-
   // FindMatchingElement.scala - jaccardSimilarity
   test("Check if Jaccard Similarity returns the right result for unequal values negative") {
     val node1: NodeObject = NodeObject(id = 1, children = 1, props = 2, currentDepth = 3, propValueRange = 4, maxDepth = 5, maxBranchingFactor = 6, maxProperties = 7, storedValue = 8.0, valuableData = true)

@@ -9,25 +9,31 @@ import org.slf4j.LoggerFactory
 
 object GraphWalk {
   private val logger = LoggerFactory.getLogger(getClass)
+
   //   Define the randomWalk function with an accumulator for visited nodes
   def randomWalk(graph: Graph[NodeObject, Action], startNode: VertexId, maxSteps: Int, visitedNodesAcc: CollectionAccumulator[VertexId]): List[VertexId] = {
     @tailrec
     def randomWalkRecursive(currentNode: VertexId, steps: Int, path: List[VertexId]): List[VertexId] = {
+      // Termination conditions for the recursive function
       if (steps >= maxSteps - 1 || visitedNodesAcc.value.contains(startNode)) {
         path.reverse
       } else {
+        // Find neighbors of the current node
         val neighbors = graph.edges.filter(_.srcId == currentNode).map(_.dstId).collect()
         if (neighbors.isEmpty) path.reverse
         else {
+          // Filter unvisited neighbors
           val unvisitedNeighbors = neighbors.filter(!visitedNodesAcc.value.contains(_))
           if (unvisitedNeighbors.isEmpty) path.reverse
           else {
+            // Choose a random unvisited neighbor and continue the walk
             val nextNode = unvisitedNeighbors(Random.nextInt(unvisitedNeighbors.length))
             randomWalkRecursive(nextNode, steps + 1, nextNode :: path)
           }
         }
       }
     }
+
     logger.info(s"Starting randomWalk with startNode: $startNode, maxSteps: $maxSteps")
     val result = randomWalkRecursive(startNode, 0, List(startNode))
     logger.info(s"RandomWalk result: $result")
